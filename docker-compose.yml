@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    container_name: lead-qualifier-bot
+    env_file: .env
+    environment:
+      - TZ=Europe/Moscow
+    # Портов наружу нет: бот сам опрашивает Telegram, входящих соединений
+    # не принимает. Заявки уходят оператору сообщением, своей базы нет.
+    restart: unless-stopped
+    mem_limit: 300m
