@@ -2,9 +2,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from core.i18n import Lang
 
-ParticipationFormat = Literal["Базовый", "Стандарт", "VIP"]
-PracticeExperience = Literal["есть опыт", "немного", "нет опыта"]
+# Коды, а не подписи: заявка одна и та же на любом языке, подписи — в core/i18n.py.
+ParticipationFormat = Literal["basic", "standard", "vip"]
+PracticeExperience = Literal["experienced", "some", "none"]
 MessageRole = Literal["user", "assistant"]
 
 
@@ -68,6 +70,7 @@ class RetreatSession(BaseModel):
     chat_id: int
     telegram_username: str | None = None
     telegram_first_name: str | None = None
+    lang: Lang = "ru"
     started: bool = False
     submitted: bool = False
     ticket: RetreatTicket = Field(default_factory=RetreatTicket)

@@ -6,8 +6,10 @@ import re
 import httpx
 
 from core import AssistantTurn, Settings, RetreatTicket
+from core.i18n import Lang
 from core.schemas import DialogueMessage
-from services.assistant.prompts import ASSISTANT_RESPONSE_SCHEMA, RETREAT_ASSISTANT_PROMPT
+from services.assistant.fallback import FALLBACK
+from services.assistant.prompts import ASSISTANT_RESPONSE_SCHEMA, PROMPTS
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +36,13 @@ class OpenAIRetreatAssistant:
         conversation_history: list[DialogueMessage],
         last_assistant_message: str | None,
         telegram_first_name: str | None,
+        lang: Lang = "ru",
     ) -> AssistantTurn:
         payload = {
             "model": self._settings.openai_model,
             "temperature": 0.4,
             "messages": [
-                {"role": "system", "content": RETREAT_ASSISTANT_PROMPT},
+                {"role": "system", "content": PROMPTS[lang]},
                 {
                     "role": "user",
                     "content": self._build_user_prompt(
@@ -72,6 +75,7 @@ class OpenAIRetreatAssistant:
                 conversation_history=conversation_history,
                 last_assistant_message=last_assistant_message,
                 telegram_first_name=telegram_first_name,
+                lang=lang,
             )
 
     async def close(self) -> None:
@@ -137,16 +141,19 @@ class OpenAIRetreatAssistant:
         conversation_history: list[DialogueMessage],
         last_assistant_message: str | None,
         telegram_first_name: str | None,
+        lang: Lang = "ru",
     ) -> AssistantTurn:
+        """Локальный сценарий без модели: по словам в сообщении и последнем вопросе."""
+        fb = FALLBACK[lang]
         message = self._normalize_text(user_message)
         message_lower = message.lower()
         extracted = RetreatTicket()
-        requested_field = self._detect_requested_field(last_assistant_message)
+        requested_field = self._detect_requested_field(last_assistant_message, lang)
 
-        if self._is_repeat_question_request(message_lower):
-            repeated = last_assistant_message or "Мы ещё не дошли до следующего вопроса."
+        if any(trigger in message_lower for trigger in fb["repeat_triggers"]):
+            repeated = last_assistant_message or fb["no_question_yet"]
             return AssistantTurn(
-                reply=f"Мой последний вопрос был таким: {repeated}",
+                reply=fb["last_question"].format(q=repeated),
                 extracted_ticket=extracted,
                 ready_to_submit=current_ticket.is_complete(),
             )
@@ -172,7 +179,7 @@ class OpenAIRetreatAssistant:
         elif requested_field == "retreat_dates":
             extracted.retreat_dates = message
         elif requested_field == "referral_source":
-            extracted.referral_source = self._extract_referral_source(message_lower) or message
+            extracted.referral_source = self._extract_referral_source(message_lower, lang) or message
 
         if not extracted.request and not current_ticket.request and not self._looks_like_name(message):
             extracted.request = self._extract_request(message, current_ticket)
@@ -184,7 +191,7 @@ class OpenAIRetreatAssistant:
             extracted.participation_format = self._extract_participation_format(message_lower)
 
         if not extracted.referral_source and not current_ticket.referral_source:
-            src = self._extract_referral_source(message_lower)
+            src = self._extract_referral_source(message_lower, lang)
             if src:
                 extracted.referral_source = src
 
@@ -197,6 +204,7 @@ class OpenAIRetreatAssistant:
             is_new_session=is_new_session,
             conversation_history=conversation_history,
             telegram_first_name=telegram_first_name,
+            lang=lang,
         )
 
         return AssistantTurn(
@@ -212,103 +220,57 @@ class OpenAIRetreatAssistant:
         is_new_session: bool,
         conversation_history: list[DialogueMessage],
         telegram_first_name: str | None,
+        lang: Lang = "ru",
     ) -> str:
+        fb = FALLBACK[lang]
         if not conversation_history and is_new_session and not extracted.name and not merged_ticket.name:
-            return (
-                "Привет! Я рада, что ты здесь 🌿 "
-                "Меня зовут Лея — я помогу тебе узнать больше о ретрите «Познай себя» "
-                "и подобрать подходящий формат. Как тебя зовут?"
-            )
+            return fb["greeting"]
 
         if not merged_ticket.name:
-            return "Подскажи, как тебя зовут?"
+            return fb["ask_name"]
 
         name = merged_ticket.name or telegram_first_name or ""
 
         if not merged_ticket.request:
-            prefix = f"{name}, " if name else ""
-            return (
-                f"Очень приятно, {name}! ✨ "
-                f"{prefix}расскажи — что сейчас происходит в твоей жизни? "
-                "Что привело тебя к ретриту?"
-            ) if name else "Расскажи, что привело тебя к ретриту?"
+            return fb["ask_request_named"].format(name=name) if name else fb["ask_request"]
 
         if not merged_ticket.practice_experience:
-            return (
-                "Спасибо, что поделилась 🌸 "
-                "Скажи, был ли у тебя опыт медитаций, йоги или телесных практик? "
-                "Варианты: есть опыт / немного, я начинающая / нет, всё впервые."
-            )
+            return fb["ask_experience"]
 
         if not merged_ticket.participation_format:
-            return (
-                f"{name}, у нас три формата участия — посмотри, какой откликается:\n"
-                "🌱 Базовый — 25 000 ₽\n"
-                "🌿 Стандарт — 50 000 ₽\n"
-                "✨ VIP — 75 000 ₽\n\n"
-                "Какой тебе ближе?"
-            )
+            return fb["ask_format"].format(name=name)
 
         if not merged_ticket.retreat_dates:
-            return "Какой заезд тебе подходит? Напиши удобные даты или период."
+            return fb["ask_dates"]
 
         if not merged_ticket.contact:
-            return "Как лучше с тобой связаться? Напиши номер телефона или Telegram-username."
+            return fb["ask_contact"]
 
         if not merged_ticket.referral_source:
-            return (
-                "Откуда ты узнала о ретрите? "
-                "Например: Instagram, Telegram-канал, рекомендация подруги или что-то другое."
-            )
+            return fb["ask_source"]
 
-        return "Спасибо! Проверяю, всё ли записала 🌿"
+        return fb["checking"]
 
     @staticmethod
     def _normalize_text(value: str) -> str:
         return " ".join(value.split()).strip()
 
     @staticmethod
-    def _is_repeat_question_request(message_lower: str) -> bool:
-        triggers = [
-            "какой был прошлый вопрос",
-            "какой был предыдущий вопрос",
-            "повтори вопрос",
-            "повтори последний вопрос",
-            "что ты спрашивала",
-            "что ты спросила",
-        ]
-        return any(trigger in message_lower for trigger in triggers)
-
-    @staticmethod
-    def _detect_requested_field(last_assistant_message: str | None) -> str | None:
+    def _detect_requested_field(last_assistant_message: str | None, lang: Lang = "ru") -> str | None:
         if not last_assistant_message:
             return None
-
         msg = last_assistant_message.lower()
-        if any(phrase in msg for phrase in ["как тебя зовут", "как к тебе обращаться", "твоё имя"]):
-            return "name"
-        if any(phrase in msg for phrase in ["что привело", "что сейчас происходит", "расскажи"]):
-            return "request"
-        if any(phrase in msg for phrase in ["опыт медитаций", "опыт йоги", "телесных практик", "опыт практик"]):
-            return "practice_experience"
-        if any(phrase in msg for phrase in ["формат участия", "базовый", "стандарт", "vip", "какой тебе ближе"]):
-            return "participation_format"
-        if any(phrase in msg for phrase in ["заезд", "даты", "период"]):
-            return "retreat_dates"
-        if any(phrase in msg for phrase in ["связаться", "телефон", "username", "контакт"]):
-            return "contact"
-        if any(phrase in msg for phrase in ["откуда", "узнала о ретрите"]):
-            return "referral_source"
+        # Вопрос мог быть задан на другом языке, если участница переключила язык.
+        for markers in (FALLBACK[lang]["field_markers"], *(FALLBACK[o]["field_markers"] for o in FALLBACK if o != lang)):
+            for field, phrases in markers:
+                if any(phrase in msg for phrase in phrases):
+                    return field
         return None
 
     @staticmethod
     def _looks_like_name(message: str) -> bool:
         lowered = message.lower()
-        blockers = [
-            "ретрит", "медитац", "йог", "практик", "базов", "стандарт",
-            "vip", "вип", "instagram", "telegram", "подруг", "рекоменд",
-            "опыт", "начинающ", "впервые", "немного",
-        ]
+        blockers = [b for fb in FALLBACK.values() for b in fb["name_blockers"]]
         if any(b in lowered for b in blockers):
             return False
         if any(char.isdigit() for char in message):
@@ -328,32 +290,28 @@ class OpenAIRetreatAssistant:
 
     @staticmethod
     def _extract_practice_experience(message_lower: str) -> str | None:
-        if any(token in message_lower for token in ["есть опыт", "да, есть", "давно практикую", "занимаюсь"]):
-            return "есть опыт"
-        if any(token in message_lower for token in ["немного", "начинающ", "чуть-чуть", "пробовала"]):
-            return "немного"
-        if any(token in message_lower for token in ["нет опыта", "нет,", "впервые", "не было", "не пробовала", "первый раз"]):
-            return "нет опыта"
+        # Ключевые слова обоих языков: ответить можно на любом.
+        for code in ("experienced", "some", "none"):
+            if any(token in message_lower for fb in FALLBACK.values() for token in fb["experience_tokens"][code]):
+                return code
         return None
 
     @staticmethod
     def _extract_participation_format(message_lower: str) -> str | None:
-        if any(token in message_lower for token in ["vip", "вип", "75"]):
-            return "VIP"
-        if any(token in message_lower for token in ["стандарт", "50"]):
-            return "Стандарт"
-        if any(token in message_lower for token in ["базов", "25"]):
-            return "Базовый"
+        for code in ("vip", "standard", "basic"):
+            if any(token in message_lower for fb in FALLBACK.values() for token in fb["format_tokens"][code]):
+                return code
         return None
 
     @staticmethod
-    def _extract_referral_source(message_lower: str) -> str | None:
+    def _extract_referral_source(message_lower: str, lang: Lang = "ru") -> str | None:
+        labels = FALLBACK[lang]["source_labels"]
         if "instagram" in message_lower or "инстаграм" in message_lower:
             return "Instagram"
         if "telegram" in message_lower or "телеграм" in message_lower:
-            return "Telegram-канал"
-        if any(token in message_lower for token in ["подруг", "рекоменд", "знакомая", "посоветовал"]):
-            return "Рекомендация"
+            return labels["telegram"]
+        if any(token in message_lower for fb in FALLBACK.values() for token in fb["recommendation_tokens"]):
+            return labels["recommendation"]
         return None
 
     def _extract_request(self, message: str, current_ticket: RetreatTicket) -> str | None:

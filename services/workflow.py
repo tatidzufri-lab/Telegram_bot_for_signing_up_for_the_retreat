@@ -1,15 +1,11 @@
 import logging
 
 from core import RetreatSession
+from core.i18n import lang_from_text, t
 from services.assistant import OpenAIRetreatAssistant
 from services.telegram import OperatorNotifier
 
 logger = logging.getLogger(__name__)
-
-FINAL_CLIENT_MESSAGE = (
-    "Спасибо! 🌿 Куратор ретрита напишет тебе в течение 24 часов. "
-    "До встречи на ретрите — я верю, что это путешествие изменит тебя ✨"
-)
 
 
 class RetreatWorkflowService:
@@ -26,6 +22,8 @@ class RetreatWorkflowService:
             session.reset()
 
         self._prefill_contact_from_telegram(session)
+        # Участница пишет на другом языке — Лея переходит на него.
+        session.lang = lang_from_text(message_text) or session.lang
         history_before_turn = session.recent_history()
         is_new_session = not history_before_turn and not session.started
 
@@ -36,6 +34,7 @@ class RetreatWorkflowService:
             conversation_history=history_before_turn,
             last_assistant_message=session.last_assistant_message,
             telegram_first_name=session.telegram_first_name,
+            lang=session.lang,
         )
 
         session.add_user_message(message_text)
@@ -45,9 +44,10 @@ class RetreatWorkflowService:
         if session.ticket.is_complete() and turn.ready_to_submit:
             await self._notifier.send_ticket(session)
             session.submitted = True
-            session.add_assistant_message(FINAL_CLIENT_MESSAGE)
-            logger.info("Retreat ticket submitted for user_id=%s", session.user_id)
-            return FINAL_CLIENT_MESSAGE
+            final = t("final", session.lang)
+            session.add_assistant_message(final)
+            logger.info("Retreat ticket submitted for user_id=%s lang=%s", session.user_id, session.lang)
+            return final
 
         session.add_assistant_message(turn.reply)
         return turn.reply

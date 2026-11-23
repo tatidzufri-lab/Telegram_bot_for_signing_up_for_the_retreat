@@ -5,6 +5,9 @@ class InMemorySessionRepository:
     def __init__(self) -> None:
         self._sessions: dict[int, RetreatSession] = {}
 
+    def exists(self, user_id: int) -> bool:
+        return user_id in self._sessions
+
     def get_or_create(
         self,
         user_id: int,
