@@ -38,17 +38,25 @@ def lang_from_text(text: str) -> Lang | None:
     return None
 
 
+# Пометка демо: ретрит «Познай себя» — учебный сценарий портфолио.
+DEMO_NOTE: dict[Lang, str] = {
+    "ru": "(Это демо на учебном сценарии — ретрит вымышленный.)",
+    "en": "(Demo on a fictional retreat scenario.)",
+}
+
 TEXTS: dict[str, dict[Lang, str]] = {
     "start": {
         "ru": (
             "Привет! Я рада, что ты здесь 🌿 "
             "Меня зовут Лея — я помогу тебе узнать больше о ретрите «Познай себя» "
-            "и подобрать подходящий формат. Как тебя зовут?"
+            "и подобрать подходящий формат. Как тебя зовут?\n\n"
+            f"{DEMO_NOTE['ru']}"
         ),
         "en": (
             "Hi! I'm so glad you're here 🌿 "
             "I'm Leya, and I'll help you learn more about the Know Yourself retreat "
-            "and find the format that suits you. What's your name?"
+            "and find the format that suits you. What's your name?\n\n"
+            f"{DEMO_NOTE['en']}"
         ),
     },
     "reset": {
@@ -103,9 +111,17 @@ COMMANDS: dict[Lang, list[tuple[str, str]]] = {
 DESCRIPTION_EN = (
     "Hi! I'm Leya, the assistant of the Know Yourself retreat. "
     "I'll get to know you, help you pick a format and pass your request to the curator. "
-    "Я говорю и по-русски: /language"
+    "Я говорю и по-русски: /language\n\n"
+    + DEMO_NOTE["en"]
 )
-SHORT_DESCRIPTION_EN = "Leya, assistant of the Know Yourself retreat. Signs you up in a short chat."
+SHORT_DESCRIPTION_EN = "Leya, assistant of the Know Yourself retreat. Signs you up in a short chat. " + DEMO_NOTE["en"]
+DESCRIPTION_RU = (
+    "Привет! Я Лея, ассистент ретрита «Познай себя». "
+    "Познакомлюсь с тобой, помогу выбрать формат и передам заявку куратору. "
+    "I speak English too: /language\n\n"
+    + DEMO_NOTE["ru"]
+)
+SHORT_DESCRIPTION_RU = "Лея, ассистент ретрита «Познай себя»: запись в коротком разговоре. " + DEMO_NOTE["ru"]
 
 # Значения полей заявки хранятся кодами, подписи зависят от языка.
 EXPERIENCE_LABELS: dict[str, dict[Lang, str]] = {
