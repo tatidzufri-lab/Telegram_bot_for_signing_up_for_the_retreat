@@ -1,81 +1,84 @@
-# AI-квалификатор лидов «Лея» для ретрита «Познай себя»
+# Leya: an AI lead qualifier for a retreat
 
-Telegram-бот, в котором AI-ассистент Лея живым разговором помогает потенциальной участнице записаться на женский ретрит. Бот берет на себя первый контакт менеджера: знакомится, выясняет запрос, собирает контакты и передает куратору готовую заявку.
+A Telegram bot where Leya, an AI assistant, helps a prospective guest sign up for a women's retreat through a natural conversation. The bot takes over a manager's first contact: it gets acquainted, finds out what the person is looking for, collects contact details and hands the curator a finished lead card.
 
-![Заявка у куратора](demo/03_operator_notification.png)
+This is a practice project. The retreat, "Know Yourself" («Познай себя»), is a training scenario of a retreat center, not a real organization. The bot speaks Russian and English. Case study: [tatidzufri.com/en/case/lead-qualifier](https://tatidzufri.com/en/case/lead-qualifier).
 
-## О проекте
+![The lead card the curator receives](demo/03_operator_notification.png)
 
-Лея ведет свободный диалог, а не анкету с полями. Языковая модель сама решает, какой вопрос задать следующим, понимает ответы в любой форме и достает из них нужные данные. Когда все собрано, заявка уходит в закрытый Telegram-чат куратора, а участница получает сообщение, что с ней свяжутся в течение 24 часов.
+## About the project
 
-## Задача
+Leya holds a free conversation instead of a form with fields. The language model decides which question to ask next, understands answers in any shape and pulls out the data it needs. When everything is collected, the lead goes to the curator's private Telegram chat, and the guest is told someone will contact her within 24 hours.
 
-Менеджеры ретрит-центра тратили до 40% времени на первичные уточняющие вопросы. Клиентки терялись на длинных анкетах, им не хватало живого внимания.
+## The task
 
-Аудитория ретрита — женщины 30–40 лет, для которых важна теплая и безопасная атмосфера. Бот должен был разговаривать с эмпатией, без давления и в тоне бренда, и при этом довести человека до заявки.
+A long sign-up form loses people: they get tired halfway through and don't feel anyone is listening. A manager asking the same first questions by hand is slow and doesn't scale.
 
-## Решение
+The retreat's audience is women aged 30 to 40 who care about a warm, safe atmosphere. The bot had to talk with empathy, without pressure and in the brand's tone, and still bring the person to a complete lead.
 
-1. **Диалог вместо анкеты.** Лея по очереди выясняет имя, запрос (что привело к ретриту), опыт практик (медитации, йога, телесные практики), формат участия, интересующие даты, контакт для связи и откуда участница узнала о ретрите.
-2. **Три формата участия.** Базовый за 25 000 ₽, Стандарт за 50 000 ₽ и VIP за 75 000 ₽. Модель помогает выбрать и записывает выбор в заявку.
-3. **Структурированная заявка.** Ответы модели проверяются схемой Pydantic. Заявка отправляется, только когда заполнены все поля и участница готова.
-4. **Устойчивость к сбоям.** Запрос к OpenAI повторяется до трех раз при временных ошибках. Если API так и не ответил, бот переключается на встроенные правила и продолжает разговор.
-5. **Без своей базы.** Сессии живут в памяти бота, заявки уходят куратору сообщением. Контейнеру не нужны открытые порты, бот сам опрашивает Telegram.
+## How it works
 
-## Как это выглядит
+1. **A conversation, not a form.** Leya finds out, one at a time, the guest's name, what brought her to the retreat, her experience with practices (meditation, yoga, body work), the format she wants, preferred dates, a contact and how she heard about the retreat.
+2. **Three formats.** In Russian: Basic 25,000 ₽, Standard 50,000 ₽, VIP 75,000 ₽. In English the scenario is adapted: Basic $390, Standard $1,490 with five days in the Dolomites, VIP $2,290. The model helps choose and records the choice in the lead.
+3. **A structured lead.** Model answers are validated with a Pydantic schema. The lead is sent only when every field is filled and the guest is ready.
+4. **Resilient to outages.** A request to OpenAI is retried up to three times on transient errors. If the API still doesn't answer, the bot switches to built-in rules and keeps the conversation going.
+5. **No database of its own.** Sessions live in the bot's memory and leads go to the curator as messages. The container needs no open ports; the bot polls Telegram itself.
+6. **Two languages.** The language comes from `/start en` or `/start ru`, the `/language`, `/en` and `/ru` commands, the Telegram interface language, or the script of the guest's messages.
 
-| Начало диалога | Завершение диалога | Заявка у куратора |
+## What it looks like
+
+| Start of the conversation | End of the conversation | Lead card for the curator |
 |:-:|:-:|:-:|
-| ![Начало диалога](demo/01_dialog_start.png) | ![Завершение диалога](demo/02_dialog_end.png) | ![Заявка у куратора](demo/03_operator_notification.png) |
+| ![Start](demo/01_dialog_start.png) | ![End](demo/02_dialog_end.png) | ![Lead card](demo/03_operator_notification.png) |
 
-Участница нажимает «Старт», Лея здоровается и спрашивает имя. Дальше разговор идет в ее темпе. В конце куратор получает карточку: имя, запрос, выбранный формат, даты и контакт.
+The guest presses "Start", Leya says hello and asks her name. From there the conversation goes at the guest's pace. At the end the curator gets a card with the name, the request, the chosen format, dates and contact.
 
-## Результат
+## Results
 
-- Первичная квалификация лидов автоматизирована полностью: менеджер получает готовую карточку со всей предысторией.
-- Клиентка получает мгновенную теплую реакцию в любое время суток.
-- Если OpenAI недоступен, запись все равно продолжается.
+- The bot runs the first qualification round without a person: the curator receives a ready card with the whole background.
+- A guest gets an immediate, warm reply at any time of day.
+- If OpenAI is unavailable, sign-up still continues on the built-in rules.
 
-## Стек технологий
+## Tech stack
 
-| Технология | Зачем используется |
+| Technology | What it's for |
 |---|---|
-| **Python 3.12** | Язык проекта |
-| **aiogram 3** | Работа с Telegram: сообщения, команды, ответы |
-| **OpenAI API** | Ведет диалог в тоне бренда и достает данные из ответов. Модель задается в `.env`, по умолчанию `gpt-4.1-mini` |
-| **httpx** | Запросы к OpenAI с повтором при временных сбоях |
-| **Pydantic** | Схемы заявки, сессии и ответа ассистента |
-| **pydantic-settings** | Настройки из `.env` |
-| **Docker Compose** | Запуск бота на сервере одной командой |
+| **Python 3.12** | Project language |
+| **aiogram 3** | Telegram: messages, commands, replies |
+| **OpenAI API** | Runs the conversation in the brand's tone and extracts data from answers. The model is set in `.env`, `gpt-4.1-mini` by default |
+| **httpx** | Requests to OpenAI with retries on transient failures |
+| **Pydantic** | Schemas for the lead, the session and the assistant's answer |
+| **pydantic-settings** | Settings from `.env` |
+| **Docker Compose** | Runs the bot on the server with one command |
 
-## Структура репозитория
+## Repository structure
 
-- `bot/`: обработчики Telegram и форматирование сообщений.
-- `services/assistant/`: запросы к OpenAI, промпт Леи и запасные правила.
-- `services/workflow.py`: шаги разговора и отправка заявки.
-- `services/telegram/operator_notifier.py`: заявка куратору.
-- `services/storage/`: хранение сессий в памяти.
-- `core/`: настройки, логирование, схемы данных.
-- `demo/`: скриншоты.
+- `bot/`: Telegram handlers and message formatting.
+- `services/assistant/`: OpenAI requests, Leya's prompt and the fallback rules.
+- `services/workflow.py`: conversation steps and sending the lead.
+- `services/telegram/operator_notifier.py`: the lead card for the curator.
+- `services/storage/`: in-memory sessions.
+- `core/`: settings, logging, data schemas, languages.
+- `demo/`: screenshots.
 
-## Запуск
+## Running it
 
-Нужны Docker и Docker Compose.
+You need Docker and Docker Compose.
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-В `.env` заполните `TELEGRAM_BOT_TOKEN`, `OPERATOR_CHAT_ID` (чат куратора, куда приходят заявки) и `OPENAI_API_KEY`.
+In `.env`, fill in `TELEGRAM_BOT_TOKEN`, `OPERATOR_CHAT_ID` (the curator's chat that receives leads) and `OPENAI_API_KEY`.
 
-Без Docker:
+Without Docker:
 
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
 
-## Автор
+## Author
 
-Татьяна Дзюбас, AI-инженер по автоматизации. Делаю Telegram-ботов, RAG-ассистентов и LLM-агентов, которые снимают рутину с небольших команд. Кейсы и контакты на [tatidzufri.com](https://tatidzufri.com).
+Tetiana Dziubas, AI automation engineer. I build Telegram bots, RAG assistants and LLM agents that take routine work off small teams. Case studies and contact: [tatidzufri.com/en](https://tatidzufri.com/en/).
